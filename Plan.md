@@ -13,9 +13,9 @@
 | Feature | Description | Status |
 |---------|-------------|--------|
 | **`dmcp run <id>`** | Spawn stdio servers. (Deferred — has nuances) | Pending |
-| **`dmcp browse [--search <keywords>] [--category <cat>]`** | Fetch registries, search available servers | Pending |
-| **`dmcp install <id>`** | Install from registry (clone for stdio, metadata for remote) | Pending |
-| **`dmcp uninstall <id>`** | Remove installed server | Pending |
+| **`dmcp browse [url]`** | Fetch registries, list available servers (or specific URL) | Done |
+| **`dmcp install <id>`** | Install from registry (clone for stdio, metadata for remote) | Done |
+| **`dmcp uninstall <id>`** | Remove installed server | Done |
 | **`dmcp connect <id>`** | Add remote (SSE/WS) server to installed | Pending |
 
 ## Lower Priority
@@ -30,4 +30,4 @@
 
 ## Current Focus
 
-**Browse** or **run** — Next up.
+**`dmcp run <id>`** or **`dmcp connect <id>`** — Next up.

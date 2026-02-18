@@ -2,14 +2,18 @@
 //!
 //! Discovers, manages, and invokes MCP servers at user and system scope.
 
+pub mod browse;
 pub mod config;
 pub mod discovery;
 pub mod elevation;
+pub mod install;
 pub mod models;
 pub mod paths;
 pub mod sources;
 
+pub use browse::{list_registry_servers, list_registry_servers_from_url, RegistryServer};
 pub use config::set_config_value;
+pub use install::{fetch_server_from_registry, install, scope_from_registry_server, uninstall};
 pub use discovery::{get_manifest_path, get_server, list_servers, ServerInfo};
 pub use models::{Index, Manifest};
 pub use paths::Paths;

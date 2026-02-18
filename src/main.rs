@@ -3,7 +3,7 @@
 use clap::{Parser, Subcommand};
 use dmcp::config;
 use dmcp::elevation::{is_elevated, is_system_scope, re_exec_with_pkexec};
-use dmcp::{add_source, get_server, list_servers, list_sources, remove_source, set_config_value, Paths};
+use dmcp::{add_source, discovery, fetch_server_from_registry, get_server, install, list_registry_servers, list_registry_servers_from_url, list_servers, list_sources, remove_source, scope_from_registry_server, set_config_value, uninstall, Paths};
 
 #[derive(Parser)]
 #[command(name = "dmcp")]
@@ -57,6 +57,40 @@ enum Commands {
     Sources {
         #[command(subcommand)]
         action: SourcesAction,
+    },
+
+    /// Install an MCP server from registry
+    Install {
+        /// Server ID to install
+        id: String,
+
+        /// Install to system scope (requires elevation)
+        #[arg(long)]
+        system: bool,
+    },
+
+    /// Uninstall an MCP server
+    Uninstall {
+        /// Server ID to uninstall
+        id: String,
+    },
+
+    /// Browse servers available in registry sources (or a specific registry URL)
+    Browse {
+        /// Registry URL to browse (omit to use configured sources)
+        url: Option<String>,
+
+        /// Show user-scope sources only (ignored when URL is given)
+        #[arg(long)]
+        user: bool,
+
+        /// Show system-scope sources only (ignored when URL is given)
+        #[arg(long)]
+        system: bool,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
     },
 
     /// Show resolved paths (for debugging)
@@ -343,6 +377,82 @@ fn main() {
                 }
             }
         },
+        Commands::Install { id, system } => {
+            let server = match fetch_server_from_registry(&paths, &id) {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("Error: {}", e);
+                    std::process::exit(1);
+                }
+            };
+            let scope = if system {
+                dmcp::discovery::Scope::System
+            } else {
+                scope_from_registry_server(&server)
+            };
+            if scope == dmcp::discovery::Scope::System && !is_elevated() {
+                re_exec_with_pkexec();
+            }
+            match install(&paths, &id, scope, Some(server)) {
+                Ok(()) => println!("Installed {}", id),
+                Err(e) => {
+                    eprintln!("Error: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+        Commands::Uninstall { id } => {
+            if let Some((_, _, scope)) = discovery::get_uninstall_info(&paths, &id) {
+                if scope == dmcp::discovery::Scope::System && !is_elevated() {
+                    re_exec_with_pkexec();
+                }
+            }
+            match uninstall(&paths, &id) {
+                Ok(()) => println!("Uninstalled {}", id),
+                Err(e) => {
+                    eprintln!("Error: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+        Commands::Browse { url, user, system, json } => {
+            let (servers, errors): (Vec<_>, Vec<_>) = if let Some(ref u) = url {
+                match list_registry_servers_from_url(u) {
+                    Ok(s) => (s, vec![]),
+                    Err(e) => {
+                        eprintln!("Error: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                let include_user = user || (!user && !system);
+                let include_system = system || (!user && !system);
+                list_registry_servers(&paths, include_user, include_system)
+            };
+
+            for e in &errors {
+                eprintln!("Warning: {}", e);
+            }
+
+            if json {
+                let output = serde_json::to_string_pretty(&servers).unwrap();
+                println!("{output}");
+            } else {
+                if servers.is_empty() && errors.is_empty() && url.is_none() {
+                    println!("No registry sources configured. Add one with: dmcp sources add <url>");
+                    return;
+                }
+                if servers.is_empty() {
+                    println!("No servers found in registries.");
+                    return;
+                }
+                println!("{:<36} {:<24} {:<10} {:<12} {}", "ID", "NAME", "VERSION", "TRANSPORT", "SOURCE");
+                println!("{}", "-".repeat(100));
+                for s in servers {
+                    println!("{:<36} {:<24} {:<10} {:<12} {}", s.id, truncate(&s.name, 22), s.version, s.transport, truncate(&s.source, 40));
+                }
+            }
+        }
     }
 }
 

@@ -15,6 +15,7 @@ pub fn is_system_scope(path: &Path, system_install_dir: &Path) -> bool {
 
 /// Re-execute the current binary with pkexec for elevation.
 /// Passes through all current args. Exits with the child's exit code.
+/// Preserves HOME so the elevated process can read the invoking user's config (sources.list).
 pub fn re_exec_with_pkexec() -> ! {
     let exe = match std::env::current_exe() {
         Ok(p) => p,
@@ -26,7 +27,12 @@ pub fn re_exec_with_pkexec() -> ! {
 
     let args: Vec<String> = std::env::args().skip(1).collect();
 
+    // Pass HOME so elevated process reads user's ~/.config/mcp/sources.list, not /root/.config
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/root".to_string());
+
     let status = process::Command::new("pkexec")
+        .arg("env")
+        .arg(format!("HOME={}", home))
         .arg(&exe)
         .args(&args)
         .status();
