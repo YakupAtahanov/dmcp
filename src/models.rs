@@ -21,10 +21,24 @@ pub struct Manifest {
     pub name: Option<String>,
     pub summary: Option<String>,
     pub version: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub author: Option<String>,
+    #[serde(default)]
+    pub homepage: Option<String>,
     pub transports: Option<Vec<Transport>>,
     #[serde(default)]
     pub config: std::collections::HashMap<String, serde_json::Value>,
     pub install_dir: Option<String>,
+    #[serde(default)]
+    pub categories: Vec<String>,
+    #[serde(default)]
+    pub capabilities: Vec<String>,
+    #[serde(default)]
+    pub permissions: Vec<String>,
+    #[serde(default)]
+    pub tools: Vec<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

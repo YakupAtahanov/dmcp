@@ -1,7 +1,7 @@
 //! dmcp - MCP Manager CLI
 
 use clap::{Parser, Subcommand};
-use dmcp::{list_servers, Paths};
+use dmcp::{get_server, list_servers, list_sources, set_config_value, Paths};
 
 #[derive(Parser)]
 #[command(name = "dmcp")]
@@ -17,13 +17,13 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// List installed MCP servers
+    /// List installed MCP servers (default: both user and system)
     List {
-        /// Include user-scope servers
+        /// Include user-scope servers only
         #[arg(long)]
         user: bool,
 
-        /// Include system-scope servers
+        /// Include system-scope servers only
         #[arg(long)]
         system: bool,
 
@@ -32,8 +32,69 @@ enum Commands {
         json: bool,
     },
 
+    /// Show detailed info for a server
+    Info {
+        /// Server ID (e.g. com.example.calculator)
+        id: String,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Get or set server configuration
+    Config {
+        /// Server ID
+        id: String,
+
+        #[command(subcommand)]
+        action: ConfigAction,
+    },
+
+    /// Manage registry sources
+    Sources {
+        #[command(subcommand)]
+        action: SourcesAction,
+    },
+
     /// Show resolved paths (for debugging)
     Paths,
+}
+
+#[derive(Subcommand)]
+enum ConfigAction {
+    /// Get config value(s)
+    Get {
+        /// Specific key (omit for all)
+        key: Option<String>,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Set a config value
+    Set {
+        /// Config key
+        key: String,
+
+        /// Config value
+        value: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum SourcesAction {
+    /// List registry source URLs
+    List {
+        /// Show user-scope sources only
+        #[arg(long)]
+        user: bool,
+
+        /// Show system-scope sources only
+        #[arg(long)]
+        system: bool,
+    },
 }
 
 fn main() {
@@ -53,7 +114,6 @@ fn main() {
         Commands::List { user, system, json } => {
             let include_user = user || (!user && !system);
             let include_system = system || (!user && !system);
-
             let servers = list_servers(&paths, include_user, include_system, debug);
 
             if json {
@@ -75,7 +135,175 @@ fn main() {
                 }
             }
         }
+        Commands::Info { id, json } => {
+            match get_server(&paths, &id) {
+                Some((manifest, scope)) => {
+                    let scope_str = match scope {
+                        dmcp::discovery::Scope::User => "user",
+                        dmcp::discovery::Scope::System => "system",
+                    };
+                    if json {
+                        let output = serde_json::to_string_pretty(&manifest).unwrap();
+                        println!("{output}");
+                    } else {
+                        println!("ID:          {}", manifest.id.as_deref().unwrap_or("?"));
+                        println!("Name:        {}", manifest.name.as_deref().unwrap_or("?"));
+                        println!("Version:     {}", manifest.version.as_deref().unwrap_or("?"));
+                        println!("Scope:       {}", scope_str);
+                        if let Some(s) = manifest.summary.as_deref() {
+                            if !s.is_empty() {
+                                println!("Summary:     {}", s);
+                            }
+                        }
+                        if let Some(d) = manifest.description.as_deref() {
+                            if !d.is_empty() {
+                                println!("Description:\n{}", d);
+                            }
+                        }
+                        if let Some(a) = manifest.author.as_deref() {
+                            if !a.is_empty() {
+                                println!("Author:      {}", a);
+                            }
+                        }
+                        if let Some(h) = manifest.homepage.as_deref() {
+                            if !h.is_empty() {
+                                println!("Homepage:    {}", h);
+                            }
+                        }
+                        if !manifest.categories.is_empty() {
+                            println!("Categories:  {}", manifest.categories.join(", "));
+                        }
+                        if !manifest.capabilities.is_empty() {
+                            println!("Capabilities: {}", manifest.capabilities.join(", "));
+                        }
+                        if !manifest.tools.is_empty() {
+                            println!("Tools:       {}", format_tools(&manifest.tools));
+                        }
+                        if let Some(ref t) = manifest.transports {
+                            println!("Transports:  {}", format_transports(t));
+                        }
+                        if !manifest.config.is_empty() {
+                            println!("Config:");
+                            for (k, v) in &manifest.config {
+                                let val: String = v.as_str().map(String::from).unwrap_or_else(|| v.to_string());
+                                println!("  {} = {}", k, val);
+                            }
+                        }
+                    }
+                }
+                None => {
+                    eprintln!("Server not found: {}", id);
+                    std::process::exit(1);
+                }
+            }
+        }
+        Commands::Config { id, action } => match action {
+            ConfigAction::Set { key, value } => {
+                match set_config_value(&paths, &id, &key, &value) {
+                    Ok(()) => println!("Set {} = {}", key, value),
+                    Err(e) => {
+                        eprintln!("Error: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            }
+            ConfigAction::Get { key, json } => {
+                match get_server(&paths, &id) {
+                    Some((manifest, _)) => {
+                        if let Some(k) = key {
+                            match manifest.config.get(&k) {
+                                Some(v) => {
+                                    if json {
+                                        println!("{}", serde_json::to_string_pretty(v).unwrap());
+                                    } else {
+                                        let val: String = v.as_str().map(String::from).unwrap_or_else(|| v.to_string());
+                                        println!("{}", val);
+                                    }
+                                }
+                                None => {
+                                    eprintln!("Config key not found: {}", k);
+                                    std::process::exit(1);
+                                }
+                            }
+                        } else {
+                            if json {
+                                let output = serde_json::to_string_pretty(&manifest.config).unwrap();
+                                println!("{output}");
+                            } else {
+                                if manifest.config.is_empty() {
+                                    println!("No config set.");
+                                } else {
+                                    for (k, v) in &manifest.config {
+                                        let val: String = v.as_str().map(String::from).unwrap_or_else(|| v.to_string());
+                                        println!("{} = {}", k, val);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    None => {
+                        eprintln!("Server not found: {}", id);
+                        std::process::exit(1);
+                    }
+                }
+            }
+        },
+        Commands::Sources { action } => match action {
+            SourcesAction::List { user, system } => {
+                let include_user = user || (!user && !system);
+                let include_system = system || (!user && !system);
+                let sources = list_sources(&paths, include_user, include_system);
+                if sources.is_empty() {
+                    println!("No registry sources configured.");
+                    println!("Add URLs to ~/.config/mcp/sources.list or /etc/mcp/sources.list");
+                    return;
+                }
+                println!("{:<8} {}", "SCOPE", "URL");
+                println!("{}", "-".repeat(80));
+                for (url, scope) in sources {
+                    let scope_str = match scope {
+                        dmcp::SourceScope::User => "user",
+                        dmcp::SourceScope::System => "system",
+                    };
+                    println!("{:<8} {}", scope_str, url);
+                }
+            }
+        },
     }
+}
+
+fn format_tools(tools: &[serde_json::Value]) -> String {
+    tools
+        .iter()
+        .map(|t| {
+            if let Some(obj) = t.as_object() {
+                obj.get("name")
+                    .and_then(|n| n.as_str())
+                    .unwrap_or("?")
+            } else {
+                t.as_str().unwrap_or("?")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn format_transports(transports: &[dmcp::models::Transport]) -> String {
+    transports
+        .iter()
+        .map(|t| match t {
+            dmcp::models::Transport::Stdio { command, args, .. } => {
+                let args_str = args
+                    .as_ref()
+                    .map(|a| a.join(" "))
+                    .unwrap_or_default();
+                format!("stdio ({command} {args_str})")
+            }
+            dmcp::models::Transport::Sse { url, .. } => format!("sse ({url})"),
+            dmcp::models::Transport::WebSocket { ws_url, .. } => format!("websocket ({ws_url})"),
+        })
+        .collect::<Vec<_>>()
+        .join("; ")
 }
 
 fn truncate(s: &str, max: usize) -> String {

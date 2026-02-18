@@ -35,15 +35,19 @@ Requires [Rust](https://rustup.rs/).
 
 ```bash
 cargo build --release
-./target/release/dmcp list --user --system
+cargo install --path .   # Install to ~/.cargo/bin
 ```
 
-Or with `cargo run`:
+## Commands
 
-```bash
-cargo run -- list --user --system
-cargo run -- list --json   # JSON output
-```
+| Command | Description |
+|---------|-------------|
+| `dmcp list [--user] [--system] [--json]` | List installed MCP servers (default: both) |
+| `dmcp info <id> [--json]` | Show detailed info for a server |
+| `dmcp config <id> get [key] [--json]` | Get config value(s) |
+| `dmcp config <id> set <key> <value>` | Set a config value |
+| `dmcp sources list [--user] [--system]` | List registry source URLs |
+| `dmcp paths` | Show resolved paths (debug) |
 
 ## Project Structure
 
@@ -52,7 +56,8 @@ src/
 ├── main.rs      # CLI entry point
 ├── lib.rs       # Library root
 ├── paths.rs     # Path resolution (env, XDG)
-├── discovery.rs # List servers, load index/manifests
+├── discovery.rs # List servers, get_server, load index/manifests
+├── sources.rs   # Registry sources (sources.list)
 └── models.rs    # Index, Manifest, Transport structs
 ```
 

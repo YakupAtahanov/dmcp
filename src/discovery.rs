@@ -135,3 +135,32 @@ fn transport_type_name(t: &crate::models::Transport) -> String {
     }
     .to_string()
 }
+
+/// Get a single server by id. User scope is checked first.
+pub fn get_server(paths: &Paths, id: &str) -> Option<(Manifest, Scope)> {
+    // Check user scope first
+    if let Some((m, scope, _)) = load_server_from_scope(paths.user_install_dir(), id, Scope::User) {
+        return Some((m, scope));
+    }
+    // Then system scope
+    load_server_from_scope(paths.system_install_dir(), id, Scope::System).map(|(m, s, _)| (m, s))
+}
+
+/// Get the path to a server's manifest.json. User scope checked first.
+pub fn get_manifest_path(paths: &Paths, id: &str) -> Option<std::path::PathBuf> {
+    if let Some((_, _, path)) = load_server_from_scope(paths.user_install_dir(), id, Scope::User) {
+        return Some(path);
+    }
+    load_server_from_scope(paths.system_install_dir(), id, Scope::System).map(|(_, _, p)| p)
+}
+
+fn load_server_from_scope(base: &Path, id: &str, scope: Scope) -> Option<(Manifest, Scope, std::path::PathBuf)> {
+    let index_path = base.join("index.json");
+    let s = std::fs::read_to_string(&index_path).ok()?;
+    let index: Index = serde_json::from_str(&s).ok()?;
+    let entry = index.servers.get(id)?;
+    let manifest_path = std::path::PathBuf::from(&entry.location);
+    let s = std::fs::read_to_string(&manifest_path).ok()?;
+    let manifest: Manifest = serde_json::from_str(&s).ok()?;
+    Some((manifest, scope, manifest_path))
+}
