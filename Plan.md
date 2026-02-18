@@ -16,7 +16,7 @@
 | **`dmcp browse [url]`** | Fetch registries, list available servers (or specific URL) | Done |
 | **`dmcp install <id>`** | Install from registry (clone for stdio, metadata for remote) | Done |
 | **`dmcp uninstall <id>`** | Remove installed server | Done |
-| **`dmcp connect <url>`** | Add remote (SSE/WS) server by URL (no registry) | Done |
+| **`dmcp connect <url>`** | Add remote server: fetch manifest from URL if valid JSON, else treat as raw endpoint | Done |
 
 ## Lower Priority
 

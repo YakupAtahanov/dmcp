@@ -75,24 +75,28 @@ enum Commands {
         id: String,
     },
 
-    /// Connect to a remote (SSE/WebSocket) server by URL without a registry
+    /// Connect to a remote server. Fetches manifest from URL if valid JSON; otherwise treats URL as raw endpoint.
     Connect {
-        /// SSE or WebSocket URL (https:// for SSE, wss:// or ws:// for WebSocket)
+        /// URL to manifest.json (fetched and used) or raw SSE/WebSocket endpoint (fallback)
         url: String,
 
-        /// Display name
+        /// Override server ID
+        #[arg(long)]
+        id: Option<String>,
+
+        /// Override display name
         #[arg(long)]
         name: Option<String>,
 
-        /// Short description
+        /// Override short description
         #[arg(long)]
         summary: Option<String>,
 
-        /// Version string
+        /// Override version string
         #[arg(long)]
         version: Option<String>,
 
-        /// Config key=value (repeatable)
+        /// Config key=value (repeatable, overrides manifest config)
         #[arg(short, long, value_parser = parse_config)]
         config: Vec<(String, String)>,
 
@@ -393,6 +397,7 @@ fn main() {
         }
         Commands::Connect {
             url,
+            id,
             name,
             summary,
             version,
@@ -411,6 +416,7 @@ fn main() {
             match connect(
                 &paths,
                 &url,
+                id.as_deref(),
                 name.as_deref(),
                 summary.as_deref(),
                 version.as_deref(),

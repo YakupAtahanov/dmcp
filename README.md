@@ -11,13 +11,14 @@ dmcp discovers, manages, and invokes MCP servers installed on your system. It wo
 
 It supports both **local** (stdio) and **remote** (SSE, WebSocket) servers. Local servers are cloned and run from disk; remote servers are metadata-only, with connection endpoints stored in manifests.
 
-## Features (planned)
+## Features
 
 - **Discovery** — List installed servers (user + system)
-- **Registry** — Fetch from configurable registry URLs, search/browse by keywords, categories, tools
-- **Install / Connect** — Install local servers (Git clone) or connect remote servers (metadata)
+- **Registry** — Browse servers from configurable registry URLs
+- **Install** — Install from registry (Git clone for stdio, metadata for remote)
+- **Connect** — Add remote servers by URL (fetches manifest if valid JSON, else treats as raw endpoint)
 - **Config** — Get and set per-server configuration (API keys, endpoints, etc.)
-- **Invocation** — Spawn stdio servers or provide connection info for SSE/WebSocket
+- **Invocation** — Spawn stdio servers (planned)
 
 ## Configuration
 
@@ -49,6 +50,10 @@ cargo install --path .   # Install to ~/.cargo/bin
 | `dmcp sources list [--user] [--system]` | List registry source URLs |
 | `dmcp sources add <url> [--system]` | Add a registry source (default: user) |
 | `dmcp sources remove <url> [--system]` | Remove a registry source |
+| `dmcp browse [url] [--user] [--system] [--json]` | Browse servers in registries (or from specific URL) |
+| `dmcp install <id> [--system]` | Install from registry (respects registry scope) |
+| `dmcp uninstall <id>` | Remove installed server |
+| `dmcp connect <url> [--id] [--name] [--summary] [--version] [-c key=value...] [--system]` | Connect to remote server (manifest URL or raw endpoint) |
 | `dmcp paths` | Show resolved paths (debug) |
 
 ## Project Structure
@@ -60,12 +65,25 @@ src/
 ├── paths.rs     # Path resolution (env, XDG)
 ├── discovery.rs # List servers, get_server, load index/manifests
 ├── sources.rs   # Registry sources (sources.list)
+├── config.rs    # Config get/set
+├── install.rs   # Install, uninstall
+
+├── browse.rs    # Browse registry servers
+├── connect.rs   # Connect to remote by URL (manifest or raw)
+├── elevation.rs # pkexec for system scope
 └── models.rs    # Index, Manifest, Transport structs
 ```
 
+## Connect
+
+`dmcp connect` supports two modes:
+
+1. **Manifest URL** — Fetches the URL as JSON. If valid (has `id` and `transports`), uses it and applies overrides.
+2. **Raw fallback** — If fetch fails, treats URL as a raw SSE/WebSocket endpoint and auto-generates metadata.
+
 ## Status
 
-Initial implementation. `dmcp list` works. Install, config, spawn coming next.
+Core features implemented: list, info, config, sources, browse, install, uninstall, connect. `dmcp run` planned.
 
 ## References
 

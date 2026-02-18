@@ -1,14 +1,19 @@
 //! Connect to remote (SSE/WebSocket) MCP servers by URL, without a registry.
+//!
+//! Tries to fetch manifest from URL first; if valid JSON with id+transports, uses it.
+//! Otherwise falls back to treating URL as raw endpoint.
+
+use std::time::Duration;
 
 use crate::discovery;
 use crate::elevation::is_elevated;
 use crate::paths::Paths;
 
-/// Connect to a remote MCP server by URL. Creates manifest and adds to installed.
-/// All metadata is optional; id is auto-generated as com.user.connected.server1, server2, ...
+/// Connect to a remote MCP server. Tries to fetch manifest from URL; falls back to raw endpoint.
 pub fn connect(
     paths: &Paths,
     url: &str,
+    id_override: Option<&str>,
     name: Option<&str>,
     summary: Option<&str>,
     version: Option<&str>,
@@ -20,13 +25,110 @@ pub fn connect(
         return Err(ConnectError::InvalidUrl);
     }
 
+    if let Some(mut manifest) = try_fetch_manifest(url) {
+        // Manifest mode: use fetched manifest, apply overrides
+        let id = id_override
+            .map(String::from)
+            .or_else(|| manifest.get("id").and_then(|v| v.as_str()).map(String::from))
+            .unwrap_or_else(|| next_connected_server_id(paths, scope).unwrap_or_else(|_| "com.user.connected.server1".to_string()));
+
+        let install_dir = match scope {
+            crate::discovery::Scope::User => paths.user_install_dir().join(&id),
+            crate::discovery::Scope::System => paths.system_install_dir().join(&id),
+        };
+
+        std::fs::create_dir_all(&install_dir).map_err(ConnectError::CreateDir)?;
+
+        manifest["installDir"] = serde_json::Value::String(install_dir.to_string_lossy().to_string());
+        manifest["id"] = serde_json::Value::String(id.clone());
+
+        if let Some(n) = name {
+            manifest["name"] = serde_json::Value::String(n.to_string());
+        } else if manifest.get("name").is_none() {
+            manifest["name"] = serde_json::Value::String(id.clone());
+        }
+
+        if let Some(s) = summary {
+            manifest["summary"] = serde_json::Value::String(s.to_string());
+        } else if manifest.get("summary").is_none() {
+            manifest["summary"] = serde_json::Value::String("Connected via dmcp connect".to_string());
+        }
+
+        if let Some(v) = version {
+            manifest["version"] = serde_json::Value::String(v.to_string());
+        } else if manifest.get("version").is_none() {
+            manifest["version"] = serde_json::Value::String("1.0.0".to_string());
+        }
+
+        // Merge config overrides
+        let mut config_obj = manifest
+            .get("config")
+            .and_then(|c| c.as_object().cloned())
+            .unwrap_or_default();
+        for (k, v) in config {
+            config_obj.insert(k.clone(), serde_json::Value::String(v.clone()));
+        }
+        manifest["config"] = serde_json::Value::Object(config_obj);
+
+        let manifest_path = install_dir.join("manifest.json");
+        let output = serde_json::to_string_pretty(&manifest).map_err(ConnectError::Serialize)?;
+        std::fs::write(&manifest_path, output).map_err(ConnectError::WriteManifest)?;
+
+        crate::install::update_index_add(paths, &id, &manifest_path, scope)
+            .map_err(|e| ConnectError::IndexError(e.to_string()))?;
+
+        return Ok(id);
+    }
+
+    // Raw fallback: treat URL as endpoint
+    connect_raw(paths, url, id_override, name, summary, version, config, scope)
+}
+
+/// Try to fetch URL as JSON manifest. Returns Some if valid (has id and transports).
+fn try_fetch_manifest(url: &str) -> Option<serde_json::Value> {
+    let client = reqwest::blocking::Client::builder()
+        .user_agent("dmcp/1.0")
+        .connect_timeout(Duration::from_secs(15))
+        .timeout(Duration::from_secs(30))
+        .build()
+        .ok()?;
+
+    let resp = client.get(url).send().ok()?;
+    if !resp.status().is_success() {
+        return None;
+    }
+
+    let manifest: serde_json::Value = resp.json().ok()?;
+    let id = manifest.get("id").and_then(|v| v.as_str())?;
+    let transports = manifest.get("transports").and_then(|t| t.as_array())?;
+    if id.is_empty() || transports.is_empty() {
+        return None;
+    }
+
+    Some(manifest)
+}
+
+/// Raw endpoint mode: infer transport from URL, auto-generate metadata.
+fn connect_raw(
+    paths: &Paths,
+    url: &str,
+    id_override: Option<&str>,
+    name: Option<&str>,
+    summary: Option<&str>,
+    version: Option<&str>,
+    config: &[(String, String)],
+    scope: crate::discovery::Scope,
+) -> Result<String, ConnectError> {
     let transport_type = if url.starts_with("wss://") || url.starts_with("ws://") {
         "websocket"
     } else {
         "sse"
     };
 
-    let id = next_connected_server_id(paths, scope)?;
+    let id = id_override
+        .map(String::from)
+        .unwrap_or_else(|| next_connected_server_id(paths, scope).unwrap_or_else(|_| "com.user.connected.server1".into()));
+
     let install_dir = match scope {
         crate::discovery::Scope::User => paths.user_install_dir().join(&id),
         crate::discovery::Scope::System => paths.system_install_dir().join(&id),
