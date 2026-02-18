@@ -5,8 +5,8 @@
 | Feature | Description | Status |
 |---------|-------------|--------|
 | **`dmcp config <id> set <key> <value>`** | Write config (API keys, endpoints). Update manifest and persist. | Done |
-| **`dmcp sources add <url>`** | Add a registry URL to sources.list | Pending |
-| **`dmcp sources remove <url>`** | Remove a registry URL from sources.list | Pending |
+| **`dmcp sources add <url>`** | Add a registry URL to sources.list | Done |
+| **`dmcp sources remove <url>`** | Remove a registry URL from sources.list | Done |
 
 ## Medium Priority
 
@@ -30,4 +30,4 @@
 
 ## Current Focus
 
-**Sources add/remove** — Next up.
+**Browse** or **run** — Next up.

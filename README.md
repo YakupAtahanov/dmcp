@@ -47,6 +47,8 @@ cargo install --path .   # Install to ~/.cargo/bin
 | `dmcp config <id> get [key] [--json]` | Get config value(s) |
 | `dmcp config <id> set <key> <value>` | Set a config value (uses pkexec for system scope) |
 | `dmcp sources list [--user] [--system]` | List registry source URLs |
+| `dmcp sources add <url> [--system]` | Add a registry source (default: user) |
+| `dmcp sources remove <url> [--system]` | Remove a registry source |
 | `dmcp paths` | Show resolved paths (debug) |
 
 ## Project Structure

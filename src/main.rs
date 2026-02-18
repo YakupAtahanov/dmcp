@@ -3,7 +3,7 @@
 use clap::{Parser, Subcommand};
 use dmcp::config;
 use dmcp::elevation::{is_elevated, is_system_scope, re_exec_with_pkexec};
-use dmcp::{get_server, list_servers, list_sources, set_config_value, Paths};
+use dmcp::{add_source, get_server, list_servers, list_sources, remove_source, set_config_value, Paths};
 
 #[derive(Parser)]
 #[command(name = "dmcp")]
@@ -94,6 +94,34 @@ enum SourcesAction {
         user: bool,
 
         /// Show system-scope sources only
+        #[arg(long)]
+        system: bool,
+    },
+
+    /// Add a registry source URL
+    Add {
+        /// URL of the registry JSON file
+        url: String,
+
+        /// Add to user scope (default)
+        #[arg(long)]
+        user: bool,
+
+        /// Add to system scope (requires elevation)
+        #[arg(long)]
+        system: bool,
+    },
+
+    /// Remove a registry source URL
+    Remove {
+        /// URL to remove
+        url: String,
+
+        /// Remove from user scope
+        #[arg(long)]
+        user: bool,
+
+        /// Remove from system scope (requires elevation)
         #[arg(long)]
         system: bool,
     },
@@ -276,6 +304,42 @@ fn main() {
                         dmcp::SourceScope::System => "system",
                     };
                     println!("{:<8} {}", scope_str, url);
+                }
+            }
+            SourcesAction::Add { url, system, .. } => {
+                let scope = if system {
+                    dmcp::SourceScope::System
+                } else {
+                    dmcp::SourceScope::User
+                };
+                // System scope needs root for create_dir + write; re-exec upfront
+                if scope == dmcp::SourceScope::System && !is_elevated() {
+                    re_exec_with_pkexec();
+                }
+                match add_source(&paths, &url, scope) {
+                    Ok(()) => println!("Added {}", url),
+                    Err(e) => {
+                        eprintln!("Error: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            }
+            SourcesAction::Remove { url, system, .. } => {
+                let scope = if system {
+                    dmcp::SourceScope::System
+                } else {
+                    dmcp::SourceScope::User
+                };
+                // System scope needs root; re-exec upfront
+                if scope == dmcp::SourceScope::System && !is_elevated() {
+                    re_exec_with_pkexec();
+                }
+                match remove_source(&paths, &url, scope) {
+                    Ok(()) => println!("Removed {}", url),
+                    Err(e) => {
+                        eprintln!("Error: {}", e);
+                        std::process::exit(1);
+                    }
                 }
             }
         },

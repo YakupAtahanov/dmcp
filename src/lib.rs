@@ -13,4 +13,4 @@ pub use config::set_config_value;
 pub use discovery::{get_manifest_path, get_server, list_servers, ServerInfo};
 pub use models::{Index, Manifest};
 pub use paths::Paths;
-pub use sources::{list_sources, SourceScope};
+pub use sources::{add_source, list_sources, remove_source, SourceScope, SourcesError};
