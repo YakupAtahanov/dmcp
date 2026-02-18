@@ -29,9 +29,36 @@ cp .env.example .env
 
 See [MCP-SYSTEM-SPEC.md](MCP-SYSTEM-SPEC.md) for the full specification and [MCP-REGISTRY-GUIDE.md](MCP-REGISTRY-GUIDE.md) for registry format and install flow.
 
+## Build & Run
+
+Requires [Rust](https://rustup.rs/).
+
+```bash
+cargo build --release
+./target/release/dmcp list --user --system
+```
+
+Or with `cargo run`:
+
+```bash
+cargo run -- list --user --system
+cargo run -- list --json   # JSON output
+```
+
+## Project Structure
+
+```
+src/
+├── main.rs      # CLI entry point
+├── lib.rs       # Library root
+├── paths.rs     # Path resolution (env, XDG)
+├── discovery.rs # List servers, load index/manifests
+└── models.rs    # Index, Manifest, Transport structs
+```
+
 ## Status
 
-**Specification only.** Implementation is in progress.
+Initial implementation. `dmcp list` works. Install, config, spawn coming next.
 
 ## References
 
