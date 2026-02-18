@@ -1,0 +1,39 @@
+# Local environment (user overrides; .env.example is committed)
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Rust
+target/
+Cargo.lock
+
+# Node (if used for tooling)
+node_modules/
+
+# Cache
+.cache/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE (optional; uncomment if you prefer not to commit)
+# .idea/
+# .vscode/
+# *.swp
+# *.swo
