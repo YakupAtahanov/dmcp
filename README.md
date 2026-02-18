@@ -45,7 +45,7 @@ cargo install --path .   # Install to ~/.cargo/bin
 | `dmcp list [--user] [--system] [--json]` | List installed MCP servers (default: both) |
 | `dmcp info <id> [--json]` | Show detailed info for a server |
 | `dmcp config <id> get [key] [--json]` | Get config value(s) |
-| `dmcp config <id> set <key> <value>` | Set a config value |
+| `dmcp config <id> set <key> <value>` | Set a config value (uses pkexec for system scope) |
 | `dmcp sources list [--user] [--system]` | List registry source URLs |
 | `dmcp paths` | Show resolved paths (debug) |
 

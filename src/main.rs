@@ -1,6 +1,8 @@
 //! dmcp - MCP Manager CLI
 
 use clap::{Parser, Subcommand};
+use dmcp::config;
+use dmcp::elevation::{is_elevated, is_system_scope, re_exec_with_pkexec};
 use dmcp::{get_server, list_servers, list_sources, set_config_value, Paths};
 
 #[derive(Parser)]
@@ -201,6 +203,14 @@ fn main() {
             ConfigAction::Set { key, value } => {
                 match set_config_value(&paths, &id, &key, &value) {
                     Ok(()) => println!("Set {} = {}", key, value),
+                    Err(config::SetConfigError::WriteFailed(_, manifest_path)) if !is_elevated() => {
+                        if is_system_scope(&manifest_path, paths.system_install_dir()) {
+                            re_exec_with_pkexec();
+                        } else {
+                            eprintln!("Error: Failed to write manifest (permission denied)");
+                            std::process::exit(1);
+                        }
+                    }
                     Err(e) => {
                         eprintln!("Error: {}", e);
                         std::process::exit(1);

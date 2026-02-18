@@ -4,6 +4,7 @@
 
 pub mod config;
 pub mod discovery;
+pub mod elevation;
 pub mod models;
 pub mod paths;
 pub mod sources;

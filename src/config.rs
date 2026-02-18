@@ -24,7 +24,7 @@ pub fn set_config_value(paths: &Paths, id: &str, key: &str, value: &str) -> Resu
     config.insert(key.to_string(), serde_json::Value::String(value.to_string()));
 
     let output = serde_json::to_string_pretty(&manifest).map_err(SetConfigError::SerializeFailed)?;
-    std::fs::write(&manifest_path, output).map_err(SetConfigError::WriteFailed)?;
+    std::fs::write(&manifest_path, output).map_err(|e| SetConfigError::WriteFailed(e, manifest_path.clone()))?;
 
     Ok(())
 }
@@ -36,7 +36,7 @@ pub enum SetConfigError {
     ReadFailed(std::io::Error),
     ParseFailed(serde_json::Error),
     SerializeFailed(serde_json::Error),
-    WriteFailed(std::io::Error),
+    WriteFailed(std::io::Error, std::path::PathBuf),
 }
 
 impl std::fmt::Display for SetConfigError {
@@ -47,7 +47,7 @@ impl std::fmt::Display for SetConfigError {
             SetConfigError::ReadFailed(e) => write!(f, "Failed to read manifest: {}", e),
             SetConfigError::ParseFailed(e) => write!(f, "Failed to parse manifest: {}", e),
             SetConfigError::SerializeFailed(e) => write!(f, "Failed to serialize manifest: {}", e),
-            SetConfigError::WriteFailed(e) => write!(f, "Failed to write manifest: {}", e),
+            SetConfigError::WriteFailed(e, _) => write!(f, "Failed to write manifest: {}", e),
         }
     }
 }
