@@ -188,15 +188,7 @@ fn main() {
                     println!("No MCP servers installed.");
                     return;
                 }
-                println!("{:<36} {:<24} {:<10} {:<12} {}", "ID", "NAME", "VERSION", "TRANSPORT", "SCOPE");
-                println!("{}", "-".repeat(95));
-                for s in servers {
-                    let scope = match s.scope {
-                        dmcp::discovery::Scope::User => "user",
-                        dmcp::discovery::Scope::System => "system",
-                    };
-                    println!("{:<36} {:<24} {:<10} {:<12} {}", s.id, truncate(&s.name, 22), s.version, s.transport_type, scope);
-                }
+                print_list_table(&servers);
             }
         }
         Commands::Info { id, json } => {
@@ -210,49 +202,7 @@ fn main() {
                         let output = serde_json::to_string_pretty(&manifest).unwrap();
                         println!("{output}");
                     } else {
-                        println!("ID:          {}", manifest.id.as_deref().unwrap_or("?"));
-                        println!("Name:        {}", manifest.name.as_deref().unwrap_or("?"));
-                        println!("Version:     {}", manifest.version.as_deref().unwrap_or("?"));
-                        println!("Scope:       {}", scope_str);
-                        if let Some(s) = manifest.summary.as_deref() {
-                            if !s.is_empty() {
-                                println!("Summary:     {}", s);
-                            }
-                        }
-                        if let Some(d) = manifest.description.as_deref() {
-                            if !d.is_empty() {
-                                println!("Description:\n{}", d);
-                            }
-                        }
-                        if let Some(a) = manifest.author.as_deref() {
-                            if !a.is_empty() {
-                                println!("Author:      {}", a);
-                            }
-                        }
-                        if let Some(h) = manifest.homepage.as_deref() {
-                            if !h.is_empty() {
-                                println!("Homepage:    {}", h);
-                            }
-                        }
-                        if !manifest.categories.is_empty() {
-                            println!("Categories:  {}", manifest.categories.join(", "));
-                        }
-                        if !manifest.capabilities.is_empty() {
-                            println!("Capabilities: {}", manifest.capabilities.join(", "));
-                        }
-                        if !manifest.tools.is_empty() {
-                            println!("Tools:       {}", format_tools(&manifest.tools));
-                        }
-                        if let Some(ref t) = manifest.transports {
-                            println!("Transports:  {}", format_transports(t));
-                        }
-                        if !manifest.config.is_empty() {
-                            println!("Config:");
-                            for (k, v) in &manifest.config {
-                                let val: String = v.as_str().map(String::from).unwrap_or_else(|| v.to_string());
-                                println!("  {} = {}", k, val);
-                            }
-                        }
+                        print_info_output(&manifest, scope_str);
                     }
                 }
                 None => {
@@ -446,11 +396,7 @@ fn main() {
                     println!("No servers found in registries.");
                     return;
                 }
-                println!("{:<36} {:<24} {:<10} {:<12} {}", "ID", "NAME", "VERSION", "TRANSPORT", "SOURCE");
-                println!("{}", "-".repeat(100));
-                for s in servers {
-                    println!("{:<36} {:<24} {:<10} {:<12} {}", s.id, truncate(&s.name, 22), s.version, s.transport, truncate(&s.source, 40));
-                }
+                print_browse_table(&servers);
             }
         }
     }
@@ -490,10 +436,84 @@ fn format_transports(transports: &[dmcp::models::Transport]) -> String {
         .join("; ")
 }
 
-fn truncate(s: &str, max: usize) -> String {
-    if s.len() <= max {
-        s.to_string()
-    } else {
-        format!("{}…", &s[..max.saturating_sub(1)])
+fn print_info_output(manifest: &dmcp::Manifest, scope_str: &str) {
+    const INDENT: &str = "        ";
+
+    println!("{}", manifest.id.as_deref().unwrap_or("?"));
+    println!("{}Name:        {}", INDENT, manifest.name.as_deref().unwrap_or("?"));
+    println!("{}Version:     {}", INDENT, manifest.version.as_deref().unwrap_or("?"));
+    println!("{}Scope:       {}", INDENT, scope_str);
+    if let Some(s) = manifest.summary.as_deref().filter(|x| !x.is_empty()) {
+        println!("{}Summary:     {}", INDENT, s);
+    }
+    if let Some(d) = manifest.description.as_deref().filter(|x| !x.is_empty()) {
+        println!("{}Description:", INDENT);
+        for line in d.lines() {
+            let trimmed = line.trim();
+            if !trimmed.is_empty() {
+                println!("{}{}{}", INDENT, INDENT, trimmed);
+            }
+        }
+    }
+    if let Some(a) = manifest.author.as_deref().filter(|x| !x.is_empty()) {
+        println!("{}Author:      {}", INDENT, a);
+    }
+    if let Some(h) = manifest.homepage.as_deref().filter(|x| !x.is_empty()) {
+        println!("{}Homepage:    {}", INDENT, h);
+    }
+    if !manifest.categories.is_empty() {
+        println!("{}Categories:  {}", INDENT, manifest.categories.join(", "));
+    }
+    if !manifest.capabilities.is_empty() {
+        println!("{}Capabilities: {}", INDENT, manifest.capabilities.join(", "));
+    }
+    if !manifest.tools.is_empty() {
+        println!("{}Tools:       {}", INDENT, format_tools(&manifest.tools));
+    }
+    if let Some(ref t) = manifest.transports {
+        println!("{}Transports:  {}", INDENT, format_transports(t));
+    }
+    if let Some(ref dir) = manifest.install_dir {
+        println!("{}Install:     {}", INDENT, dir);
+    }
+    if !manifest.config.is_empty() {
+        for (k, v) in &manifest.config {
+            let val: String = v.as_str().map(String::from).unwrap_or_else(|| v.to_string());
+            println!("{}Config.{}:   {}", INDENT, k, val);
+        }
+    }
+}
+
+fn print_list_table(servers: &[dmcp::ServerInfo]) {
+    const INDENT: &str = "        ";
+
+    for s in servers {
+        let scope = match s.scope {
+            dmcp::discovery::Scope::User => "user",
+            dmcp::discovery::Scope::System => "system",
+        };
+        println!("{}", s.id);
+        println!("{}Name:      {}", INDENT, s.name);
+        println!("{}Version:   {}", INDENT, s.version);
+        println!("{}Transport: {}", INDENT, s.transport_type);
+        println!("{}Scope:     {}", INDENT, scope);
+        println!("{}Install:   {}", INDENT, s.install_dir);
+        println!();
+    }
+}
+
+fn print_browse_table(servers: &[dmcp::RegistryServer]) {
+    const INDENT: &str = "        ";
+
+    for s in servers {
+        println!("{}", s.id);
+        println!("{}Name:      {}", INDENT, s.name);
+        println!("{}Version:   {}", INDENT, s.version);
+        println!("{}Transport: {}", INDENT, s.transport);
+        if !s.summary.is_empty() {
+            println!("{}Summary:   {}", INDENT, s.summary.lines().next().unwrap_or("").trim());
+        }
+        println!("{}Source:    {}", INDENT, s.source);
+        println!();
     }
 }

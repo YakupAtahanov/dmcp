@@ -14,6 +14,7 @@ pub struct ServerInfo {
     pub version: String,
     pub transport_type: String,
     pub scope: Scope,
+    pub install_dir: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
@@ -111,12 +112,18 @@ fn load_from_scope(base: &Path, scope: Scope, debug: bool) -> Option<Vec<ServerI
             .map(transport_type_name)
             .unwrap_or_else(|| "unknown".to_string());
 
+        let install_dir = manifest_path
+            .parent()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|| entry.location.clone());
+
         servers.push(ServerInfo {
             id: manifest.id.unwrap_or(id),
             name: manifest.name.unwrap_or_else(|| "Unknown".to_string()),
             version: manifest.version.unwrap_or_else(|| "?".to_string()),
             transport_type,
             scope,
+            install_dir,
         });
     }
 
