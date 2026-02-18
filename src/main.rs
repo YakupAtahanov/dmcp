@@ -3,7 +3,7 @@
 use clap::{Parser, Subcommand};
 use dmcp::config;
 use dmcp::elevation::{is_elevated, is_system_scope, re_exec_with_pkexec};
-use dmcp::{add_source, discovery, fetch_server_from_registry, get_server, install, list_registry_servers, list_registry_servers_from_url, list_servers, list_sources, remove_source, scope_from_registry_server, set_config_value, uninstall, Paths};
+use dmcp::{add_source, connect, discovery, fetch_server_from_registry, get_server, install, list_registry_servers, list_registry_servers_from_url, list_servers, list_sources, remove_source, scope_from_registry_server, set_config_value, uninstall, Paths};
 
 #[derive(Parser)]
 #[command(name = "dmcp")]
@@ -73,6 +73,32 @@ enum Commands {
     Uninstall {
         /// Server ID to uninstall
         id: String,
+    },
+
+    /// Connect to a remote (SSE/WebSocket) server by URL without a registry
+    Connect {
+        /// SSE or WebSocket URL (https:// for SSE, wss:// or ws:// for WebSocket)
+        url: String,
+
+        /// Display name
+        #[arg(long)]
+        name: Option<String>,
+
+        /// Short description
+        #[arg(long)]
+        summary: Option<String>,
+
+        /// Version string
+        #[arg(long)]
+        version: Option<String>,
+
+        /// Config key=value (repeatable)
+        #[arg(short, long, value_parser = parse_config)]
+        config: Vec<(String, String)>,
+
+        /// Install to system scope (requires elevation)
+        #[arg(long)]
+        system: bool,
     },
 
     /// Browse servers available in registry sources (or a specific registry URL)
@@ -365,6 +391,39 @@ fn main() {
                 }
             }
         }
+        Commands::Connect {
+            url,
+            name,
+            summary,
+            version,
+            config,
+            system,
+        } => {
+            let scope = if system {
+                dmcp::discovery::Scope::System
+            } else {
+                dmcp::discovery::Scope::User
+            };
+            if scope == dmcp::discovery::Scope::System && !is_elevated() {
+                re_exec_with_pkexec();
+            }
+            let config_ref: Vec<(String, String)> = config.iter().cloned().collect();
+            match connect(
+                &paths,
+                &url,
+                name.as_deref(),
+                summary.as_deref(),
+                version.as_deref(),
+                &config_ref,
+                scope,
+            ) {
+                Ok(id) => println!("Connected {}", id),
+                Err(e) => {
+                    eprintln!("Error: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
         Commands::Browse { url, user, system, json } => {
             let (servers, errors): (Vec<_>, Vec<_>) = if let Some(ref u) = url {
                 match list_registry_servers_from_url(u) {
@@ -399,6 +458,21 @@ fn main() {
                 print_browse_table(&servers);
             }
         }
+    }
+}
+
+fn parse_config(s: &str) -> Result<(String, String), String> {
+    let s = s.trim();
+    if let Some(eq) = s.find('=') {
+        let k = s[..eq].trim().to_string();
+        let v = s[eq + 1..].trim().to_string();
+        if k.is_empty() {
+            Err("config key cannot be empty".to_string())
+        } else {
+            Ok((k, v))
+        }
+    } else {
+        Err("config must be key=value".to_string())
     }
 }
 

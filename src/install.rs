@@ -154,7 +154,7 @@ fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-fn update_index_add(
+pub fn update_index_add(
     paths: &Paths,
     id: &str,
     manifest_path: &Path,

@@ -16,7 +16,7 @@
 | **`dmcp browse [url]`** | Fetch registries, list available servers (or specific URL) | Done |
 | **`dmcp install <id>`** | Install from registry (clone for stdio, metadata for remote) | Done |
 | **`dmcp uninstall <id>`** | Remove installed server | Done |
-| **`dmcp connect <id>`** | Add remote (SSE/WS) server to installed | Pending |
+| **`dmcp connect <url>`** | Add remote (SSE/WS) server by URL (no registry) | Done |
 
 ## Lower Priority
 
@@ -30,4 +30,4 @@
 
 ## Current Focus
 
-**`dmcp run <id>`** or **`dmcp connect <id>`** — Next up.
+**`dmcp run <id>`** — Next up.
